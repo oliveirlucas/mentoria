@@ -146,7 +146,9 @@ public class GestorPatrimonio {
             return;
         }
 
-        executarVenda(scanner, "casa", casa.nome, casa.valor, donoAtual, novoDono, dono -> casa.setDono(dono));
+        if (executarVenda(scanner, "casa", casa.nome, casa.valor, donoAtual, novoDono)) {
+            casa.setDono(novoDono);
+        }
     }
 
     public static void transferirCarro(Scanner scanner, ArrayList<Pessoa> familia, ArrayList<Carro> carros) {
@@ -193,68 +195,114 @@ public class GestorPatrimonio {
             return;
         }
 
-        executarVenda(scanner, "carro", carro.nome, carro.valor, donoAtual, novoDono, dono -> carro.setDono(dono));
+        if (executarVenda(scanner, "carro", carro.nome, carro.valor, donoAtual, novoDono)) {
+            carro.setDono(novoDono);
+        }
     }
 
-    private static void executarVenda(Scanner scanner, String tipoBem, String nomeBem, double valorBem,
-            Pessoa vendedor, Pessoa comprador, java.util.function.Consumer<Pessoa> aplicarTroca) {
+    // Método privado e estático que executa a venda de um bem (casa ou carro) entre duas pessoas.
+    // Recebe o Scanner para ler respostas do usuário, o tipo do bem (ex.: "casa"/"carro"),
+    // o nome do bem, o valor do bem, o vendedor e o comprador.
+    // Retorna true se a venda foi confirmada (cabe a quem chamou aplicar a troca de dono
+    // no objeto correto, ex.: casa.setDono(comprador)) e false caso contrário.
+    private static boolean executarVenda(Scanner scanner, String tipoBem, String nomeBem, double valorBem,
+            Pessoa vendedor, Pessoa comprador) {
 
+        // Guarda em uma variável local o saldo atual da carteira do comprador.
         double saldoComprador = comprador.carteira;
+        // Calcula quanto está faltando para o comprador pagar o bem à vista.
+        // Usa Math.max para garantir que nunca fique negativo (se sobrar dinheiro, "faltante" é 0).
         double faltante = Math.max(0, valorBem - saldoComprador);
 
+        // Imprime no console um cabeçalho separando visualmente o resumo da venda.
         System.out.println("\n--- Resumo da venda ---");
+        // Mostra qual bem está sendo vendido, com tipo, nome e valor formatado em reais.
         System.out.printf("Bem: %s \"%s\" (R$ %.2f)%n", tipoBem, nomeBem, valorBem);
+        // Mostra o nome do vendedor e quanto ele tem hoje na carteira.
         System.out.printf("Vendedor: %s (carteira atual: R$ %.2f)%n", vendedor.nome, vendedor.carteira);
+        // Mostra o nome do comprador, sua carteira atual e a dívida atual dele.
         System.out.printf("Comprador: %s (carteira atual: R$ %.2f, dívida atual: R$ %.2f)%n",
                 comprador.nome, comprador.carteira, comprador.divida);
 
+        // Declara a variável que vai guardar o valor efetivamente pago do bolso do comprador.
         double valorPago;
+        // Declara a variável que vai guardar o valor do empréstimo (se for necessário).
         double valorEmprestimo;
 
+        // Se não falta nada, o comprador consegue pagar tudo à vista.
         if (faltante == 0) {
+            // O valor pago é o valor cheio do bem.
             valorPago = valorBem;
+            // Não há necessidade de empréstimo.
             valorEmprestimo = 0;
+            // Informa ao usuário que a compra será feita à vista.
             System.out.printf("Pagamento à vista: R$ %.2f%n", valorPago);
         } else {
+            // Caso contrário, avisa o usuário quanto falta para fechar a compra.
             System.out.printf("Saldo insuficiente. Faltam R$ %.2f para concluir a compra.%n", faltante);
-            if (!confirmarAcao(scanner,
-                    String.format("Deseja contratar empréstimo de R$ %.2f (sem juros) para cobrir o restante?", faltante))) {
+            // Pergunta se o comprador deseja contratar um empréstimo para cobrir o que falta.
+            // Se a resposta for "não" (confirmarAcao retorna false), a venda é cancelada.
+            if (!confirmarAcao(scanner, String.format("Deseja contratar empréstimo de R$ %.2f (sem juros) para cobrir o restante?", faltante))) {
+                // Informa o cancelamento da operação.
                 System.out.println("Venda cancelada por saldo insuficiente.");
-                return;
+                // Sai do método sem efetuar a venda.
+                return false;
             }
+            // Se aceitou o empréstimo, ele paga tudo o que tem na carteira...
             valorPago = saldoComprador;
+            // ...e o restante vira dívida.
             valorEmprestimo = faltante;
+            // Mostra quanto vai ser debitado da carteira do comprador.
             System.out.printf("Será debitado da carteira: R$ %.2f%n", valorPago);
+            // Mostra quanto vai ser somado na dívida do comprador.
             System.out.printf("Será adicionado à dívida: R$ %.2f%n", valorEmprestimo);
         }
 
+        // Calcula como ficará a carteira do comprador depois da venda (preview).
         double saldoFinalComprador = comprador.carteira - valorPago;
+        // Calcula como ficará a dívida do comprador depois da venda (preview).
         double dividaFinalComprador = comprador.divida + valorEmprestimo;
+        // Calcula como ficará a carteira do vendedor depois da venda (preview).
         double saldoFinalVendedor = vendedor.carteira + valorBem;
 
+        // Imprime cabeçalho mostrando o estado financeiro previsto após a venda.
         System.out.println("\n--- Após a venda ---");
+        // Mostra a previsão de carteira e dívida do comprador.
         System.out.printf("%s: carteira R$ %.2f, dívida R$ %.2f%n",
                 comprador.nome, saldoFinalComprador, dividaFinalComprador);
+        // Mostra a previsão de carteira do vendedor.
         System.out.printf("%s: carteira R$ %.2f%n", vendedor.nome, saldoFinalVendedor);
 
+        // Monta a mensagem final de confirmação, identificando o bem, vendedor e comprador.
         String msgConfirmacao = String.format("Confirmar venda do %s \"%s\" de %s para %s?",
                 tipoBem, nomeBem, vendedor.nome, comprador.nome);
 
+        // Pede a confirmação final ao usuário; se ele recusar, a venda não acontece.
         if (!confirmarAcao(scanner, msgConfirmacao)) {
+            // Informa que a venda não foi realizada.
             System.out.println("Venda não realizada.");
-            return;
+            // Sai do método sem alterar nada nas carteiras nem nos bens.
+            return false;
         }
 
+        // A partir daqui a venda foi confirmada: aplica de fato as alterações.
+        // Debita da carteira do comprador o valor efetivamente pago.
         comprador.debitar(valorPago);
+        // Se houve empréstimo, soma esse valor na dívida do comprador.
         if (valorEmprestimo > 0) {
             comprador.aumentarDivida(valorEmprestimo);
         }
+        // Credita ao vendedor o valor cheio do bem (ele recebe tudo, mesmo com empréstimo).
         vendedor.creditar(valorBem);
-        aplicarTroca.accept(comprador);
 
+        // Mensagem final indicando o sucesso da venda. Character.toUpperCase + substring(1)
+        // são usados apenas para deixar a primeira letra do tipo do bem em maiúsculo.
         System.out.printf("Venda concluída! %s \"%s\" agora pertence a %s.%n",
                 Character.toUpperCase(tipoBem.charAt(0)) + tipoBem.substring(1),
                 nomeBem, comprador.nome);
+
+        // Sinaliza para quem chamou que a venda foi efetuada e a troca de dono pode ser aplicada.
+        return true;
     }
 
     public static void transferirAnimal(Scanner scanner, ArrayList<Pessoa> familia, ArrayList<Animal> animais) {
